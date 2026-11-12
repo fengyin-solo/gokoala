@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	queryParam = "q"
+	queryParam   = "q"
+	explainParam = "explain"
 
 	limitDefault = 10
 	limitMax     = 50
@@ -36,6 +37,7 @@ var (
 
 	searchKnownParams = map[string]struct{}{
 		queryParam:            {},
+		explainParam:          {},
 		engine.FormatParam:    {},
 		features.LimitParam:   {},
 		features.CrsParam:     {},
@@ -45,7 +47,8 @@ var (
 )
 
 func parseQueryParams(query url.Values) (collections d.CollectionsWithParams, searchTerms string,
-	outputSRID fd.SRID, contentCrs fd.ContentCrs, bbox *geom.Bounds, bboxSRID fd.SRID, limit int, err error) {
+	outputSRID fd.SRID, contentCrs fd.ContentCrs, bbox *geom.Bounds, bboxSRID fd.SRID, limit int,
+	explain bool, err error) {
 
 	err = validateNoUnknownParams(query)
 	if err != nil {
@@ -60,9 +63,29 @@ func parseQueryParams(query url.Values) (collections d.CollectionsWithParams, se
 		Max:     limitMax,
 	})
 	bbox, bboxSRID, bboxErr := features.ParseBbox(query)
+	explain, explainErr := parseExplain(query)
 
-	err = errors.Join(collErr, searchTermErr, limitErr, outputSRIDErr, bboxErr)
+	err = errors.Join(collErr, searchTermErr, limitErr, outputSRIDErr, bboxErr, explainErr)
 	return
+}
+
+// parseExplain parses the optional explain parameter. Only the exact values "true"
+// and "false" are accepted, any other value (including an empty one) is invalid.
+// A missing parameter defaults to false.
+func parseExplain(query url.Values) (bool, error) {
+	values, present := query[explainParam]
+	if !present {
+		return false, nil
+	}
+	switch values[0] {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid value %q for query parameter '%s': only 'true' or 'false' are allowed",
+			values[0], explainParam)
+	}
 }
 
 // Parse collections as "deep object" params, e.g. collectionName[prop1]=value1&collectionName[prop2]=value2&....

@@ -18,6 +18,9 @@ type JSONFGFeatureCollection struct {
 	ConformsTo     []string              `json:"conformsTo"`
 	Features       []*JSONFGFeature      `json:"features"`
 	NumberReturned int                   `json:"numberReturned"`
+	// Expansion is optional and only populated for search requests that explicitly
+	// request an explanation. It is omitted for all other responses.
+	Expansion *Expansion `json:"expansion,omitempty"`
 }
 
 // JSONFGFeature a Feature according to the JSON-FG standard
@@ -65,5 +68,6 @@ func FeatureCollectionToJSONFG(fc FeatureCollection, crs ContentCrs) JSONFGFeatu
 		}
 	}
 	fgFC.NumberReturned = fc.NumberReturned
+	fgFC.Expansion = fc.Expansion
 	return fgFC
 }

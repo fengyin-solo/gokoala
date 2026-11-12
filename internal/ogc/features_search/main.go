@@ -87,9 +87,15 @@ func (s *Search) Search() http.HandlerFunc {
 		format := s.engine.CN.NegotiateFormat(r)
 		switch format {
 		case engine.FormatHTML:
+			if s.rejectExplainForNonJSON(w, r) {
+				return
+			}
 			s.searchAsHTML(w, r)
 			return
 		case engine.FormatMarkdown:
+			if s.rejectExplainForNonJSON(w, r) {
+				return
+			}
 			s.searchAsMarkdown(w, r)
 			return
 		case engine.FormatJSON, engine.FormatGeoJSON, engine.FormatJSONFG:
@@ -98,6 +104,17 @@ func (s *Search) Search() http.HandlerFunc {
 		}
 		engine.RenderProblem(engine.ProblemNotFound, w)
 	}
+}
+
+// rejectExplainForNonJSON makes sure the explain parameter isn't silently ignored
+// for HTML and Markdown responses: carrying it on those responses is a bad request.
+func (s *Search) rejectExplainForNonJSON(w http.ResponseWriter, r *http.Request) bool {
+	if r.URL.Query().Has(explainParam) {
+		engine.RenderProblem(engine.ProblemBadRequest, w,
+			fmt.Sprintf("query parameter '%s' is only supported for JSON and JSON-FG responses", explainParam))
+		return true
+	}
+	return false
 }
 
 func (s *Search) searchAsHTML(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +144,7 @@ func (s *Search) searchAsJSON(w http.ResponseWriter, r *http.Request, format str
 		engine.RenderProblem(engine.ProblemBadRequest, w, err.Error())
 		return
 	}
-	collections, searchTerms, outputSRID, contentCrs, bbox, bboxSRID, limit, err := parseQueryParams(r.URL.Query())
+	collections, searchTerms, outputSRID, contentCrs, bbox, bboxSRID, limit, explain, err := parseQueryParams(r.URL.Query())
 	if err != nil {
 		engine.RenderProblem(engine.ProblemBadRequest, w, err.Error())
 		return
@@ -135,7 +152,7 @@ func (s *Search) searchAsJSON(w http.ResponseWriter, r *http.Request, format str
 	w.Header().Add(engine.HeaderContentCrs, contentCrs.ToLink())
 
 	// Query expansion
-	searchQuery, err := s.queryExpansion.Expand(r.Context(), searchTerms)
+	searchQuery, expansion, err := s.queryExpansion.Expand(r.Context(), searchTerms)
 	if err != nil {
 		handleQueryError(w, err)
 		return
@@ -157,6 +174,12 @@ func (s *Search) searchAsJSON(w http.ResponseWriter, r *http.Request, format str
 	if err = s.enrichFeaturesWithHref(fc, contentCrs); err != nil {
 		engine.RenderProblem(engine.ProblemServerError, w, err.Error())
 		return
+	}
+
+	// Attach the query expansion explanation only when explicitly requested, so
+	// responses remain unchanged for existing clients.
+	if explain {
+		fc.Expansion = expansion
 	}
 
 	// Output

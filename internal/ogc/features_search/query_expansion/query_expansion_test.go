@@ -277,7 +277,7 @@ westgoeverneurstraat | westgoevstraat | westgouvstraat) & 1800
 			require.NoError(t, err)
 
 			// when
-			actual, err := queryExpansion.Expand(context.Background(), tt.args.searchQuery)
+			actual, _, err := queryExpansion.Expand(context.Background(), tt.args.searchQuery)
 
 			// then
 			require.NoError(t, err)

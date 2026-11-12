@@ -28,6 +28,9 @@ type FeatureCollection struct {
 	Links          []Link                `json:"links,omitempty"`
 	Features       []*Feature            `json:"features"`
 	NumberReturned int                   `json:"numberReturned"`
+	// Expansion is optional and only populated for search requests that explicitly
+	// request an explanation. It is omitted for all other responses.
+	Expansion *Expansion `json:"expansion,omitempty"`
 }
 
 // Feature is a GeoJSON Feature with extras such as links

@@ -13,10 +13,19 @@ import (
 	"strings"
 	"time"
 
+	fdomain "github.com/PDOK/gokoala/internal/ogc/features/domain"
 	"github.com/PDOK/gokoala/internal/ogc/features_search/domain"
 )
 
 const regexPrefix = "regex:"
+
+const (
+	// Limits on the number of entries exposed in the search explanation. These caps
+	// make sure the (potentially large) internal candidate set is never fully exposed.
+	maxExplainedRewrites        = 100
+	maxExplainedWords           = 100
+	maxExplainedSynonymsPerWord = 50
+)
 
 // QueryExpansion query expansion involves evaluating a user's input (what words were typed into the search query area)
 // and expanding the search query to match additional results, see https://en.wikipedia.org/wiki/Query_expansion
@@ -37,39 +46,56 @@ func NewQueryExpansion(rewritesFile, synonymsFile string, maxSynonyms int) (*Que
 	}, errors.Join(rewErr, synErr)
 }
 
-// Expand Perform query expansion, see https://en.wikipedia.org/wiki/Query_expansion
-func (s QueryExpansion) Expand(ctx context.Context, searchTerms string) (*domain.SearchQuery, error) {
+// Expand Perform query expansion, see https://en.wikipedia.org/wiki/Query_expansion.
+// Besides the search query used against the datasource, a deterministic explanation
+// of the applied rewrites and synonym expansions is returned. The explanation never
+// contains SQL or other datasource internals.
+func (s QueryExpansion) Expand(ctx context.Context, searchTerms string) (*domain.SearchQuery, *fdomain.Expansion, error) {
 	expandCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	rewritten, err := performRewrites(expandCtx, strings.ToLower(searchTerms), s.rewrites)
+	rewritten, rewriteSteps, err := performRewrites(expandCtx, strings.ToLower(searchTerms), s.rewrites)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	words, wordsWithoutSynonyms, wordsWithSynonyms, err := expandSynonyms(expandCtx, rewritten, s.synonyms, s.maxSynonyms)
+	words, wordsWithoutSynonyms, wordsWithSynonyms, truncatedWords, err :=
+		expandSynonyms(expandCtx, rewritten, s.synonyms, s.maxSynonyms)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return domain.NewSearchQuery(words, wordsWithoutSynonyms, wordsWithSynonyms), expandCtx.Err()
+	searchQuery := domain.NewSearchQuery(words, wordsWithoutSynonyms, wordsWithSynonyms)
+	explanation := newExpansion(searchTerms, rewritten, rewriteSteps, words,
+		wordsWithoutSynonyms, wordsWithSynonyms, truncatedWords)
+	return searchQuery, explanation, expandCtx.Err()
 }
 
-func performRewrites(ctx context.Context, input string, rewrites []rewrite) (string, error) {
+func performRewrites(ctx context.Context, input string, rewrites []rewrite) (string, []fdomain.RewriteStep, error) {
+	var steps []fdomain.RewriteStep
 	for _, r := range rewrites {
+		before := input
 		if r.regex != nil {
 			input = r.regex.ReplaceAllString(input, r.original)
 		} else {
 			input = strings.ReplaceAll(input, r.alternative, r.original)
 		}
+		// only report rewrites that actually changed the input
+		if input != before {
+			steps = append(steps, fdomain.RewriteStep{
+				From: strings.TrimPrefix(r.alternative, regexPrefix),
+				To:   r.original,
+			})
+		}
 	}
-	return input, ctx.Err()
+	return input, steps, ctx.Err()
 }
 
 func expandSynonyms(ctx context.Context, input string, mapping map[string][]string,
-	maxSynonyms int) ([]string, map[string]struct{}, map[string][]string, error) {
+	maxSynonyms int) ([]string, map[string]struct{}, map[string][]string, map[string]struct{}, error) {
 
 	words := uniqueSlice(strings.Fields(input))
 
 	wordsWithSynonyms := make(map[string][]string)
+	truncatedWords := make(map[string]struct{})
 	for _, word := range words {
 		variants := []string{word}
 		maxSynonymsReached := false
@@ -88,13 +114,14 @@ func expandSynonyms(ctx context.Context, input string, mapping map[string][]stri
 
 			for _, newVariant := range generateNewVariants(existingVariant, positions) {
 				if err := ctx.Err(); err != nil {
-					return nil, nil, nil, err // timeout encountered
+					return nil, nil, nil, nil, err // timeout encountered
 				}
 				if !slices.Contains(variants, newVariant) {
 					if len(variants) > maxSynonyms {
 						log.Printf("max synonyms (%d) exceeded, skipping "+
 							"further expansion for word: %s", maxSynonyms, word)
 						maxSynonymsReached = true
+						truncatedWords[word] = struct{}{}
 						break
 					}
 					variants = append(variants, newVariant) // continue for-loop by appending to slice
@@ -111,7 +138,75 @@ func expandSynonyms(ctx context.Context, input string, mapping map[string][]stri
 		}
 		wordsWithoutSynonyms[word] = struct{}{}
 	}
-	return words, wordsWithoutSynonyms, wordsWithSynonyms, ctx.Err()
+	return words, wordsWithoutSynonyms, wordsWithSynonyms, truncatedWords, ctx.Err()
+}
+
+// newExpansion builds a deterministic, capped explanation of the rewrites and
+// synonym expansions that were applied.
+func newExpansion(originalInput, normalizedInput string, rewriteSteps []fdomain.RewriteStep,
+	words []string, wordsWithoutSynonyms map[string]struct{}, wordsWithSynonyms map[string][]string,
+	truncatedWords map[string]struct{}) *fdomain.Expansion {
+
+	result := &fdomain.Expansion{
+		OriginalInput:   originalInput,
+		NormalizedInput: normalizedInput,
+		Words:           capStrings(words, maxExplainedWords),
+		Rewrites:        capRewriteSteps(rewriteSteps, maxExplainedRewrites),
+	}
+	// make sure the required words field is always serialized as an array, never null
+	if result.Words == nil {
+		result.Words = []string{}
+	}
+
+	// synonyms per word, in the deterministic order of the (capped) input words
+	for _, word := range result.Words {
+		synonyms, ok := wordsWithSynonyms[word]
+		if !ok {
+			continue
+		}
+		entry := fdomain.WordSynonyms{Word: word, Synonyms: uniqueSorted(synonyms)}
+		if len(entry.Synonyms) > maxExplainedSynonymsPerWord {
+			entry.Synonyms = entry.Synonyms[:maxExplainedSynonymsPerWord]
+			entry.Truncated = true
+		}
+		if _, isTruncated := truncatedWords[word]; isTruncated {
+			entry.Truncated = true
+		}
+		result.Synonyms = append(result.Synonyms, entry)
+	}
+
+	// words without synonyms and truncated words, in word order
+	for _, word := range result.Words {
+		if _, ok := wordsWithoutSynonyms[word]; ok {
+			result.WordsWithoutSynonyms = append(result.WordsWithoutSynonyms, word)
+		}
+		if _, ok := truncatedWords[word]; ok {
+			result.TruncatedWords = append(result.TruncatedWords, word)
+		}
+	}
+
+	return result
+}
+
+// uniqueSorted returns a sorted, deduplicated copy so explanation output is deterministic.
+func uniqueSorted(s []string) []string {
+	result := slices.Clone(s)
+	slices.Sort(result)
+	return slices.Compact(result)
+}
+
+func capStrings(s []string, max int) []string {
+	if len(s) > max {
+		return s[:max]
+	}
+	return s
+}
+
+func capRewriteSteps(s []fdomain.RewriteStep, max int) []fdomain.RewriteStep {
+	if len(s) > max {
+		return s[:max]
+	}
+	return s
 }
 
 // replaces all duplicates in a slice (note: slices.compact() only replaces consecutive duplicates).

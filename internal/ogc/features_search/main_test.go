@@ -2,6 +2,7 @@ package features_search
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -95,6 +96,9 @@ func TestSearch(t *testing.T) {
 	type want struct {
 		body       string
 		statusCode int
+		// assertion allows checking parts of a response without maintaining a full golden file.
+		// When set, the golden file body comparison is skipped.
+		assertion func(t *testing.T, body string)
 	}
 	tests := []struct {
 		name   string
@@ -442,6 +446,83 @@ func TestSearch(t *testing.T) {
 				statusCode: http.StatusOK,
 			},
 		},
+		{
+			name: "Fail on explain with an invalid value",
+			fields: fields{
+				url:    "http://localhost:8080/search?q=Acht&addresses[version]=1&f=json&explain=1",
+				format: "json",
+			},
+			want: want{
+				body:       "internal/ogc/features_search/testdata/expected-explain-invalid.json",
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name: "Fail on explain in HTML response, parameter is not silently ignored",
+			fields: fields{
+				url:    "http://localhost:8080/search?q=Acht&addresses[version]=1&f=html&explain=true",
+				format: "json",
+			},
+			want: want{
+				body:       "internal/ogc/features_search/testdata/expected-explain-html.json",
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name: "Fail on explain in Markdown response, parameter is not silently ignored",
+			fields: fields{
+				url:    "http://localhost:8080/search?q=Acht&addresses[version]=1&f=md&explain=false",
+				format: "json",
+			},
+			want: want{
+				body:       "internal/ogc/features_search/testdata/expected-explain-md.json",
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name: "Search with explain=true includes the expansion object in GeoJSON",
+			fields: fields{
+				url:    "http://localhost:8080/search?q=Den Haag&addresses[version]=1&limit=10&f=json&explain=true",
+				format: "json",
+			},
+			want: want{
+				statusCode: http.StatusOK,
+				assertion:  assertGeoJSONExpansion,
+			},
+		},
+		{
+			name: "Search with explain=true includes the expansion object in JSON-FG",
+			fields: fields{
+				url:    "http://localhost:8080/search?q=Acht&addresses[version]=1&limit=50&f=jsonfg&explain=true",
+				format: "json",
+			},
+			want: want{
+				statusCode: http.StatusOK,
+				assertion:  assertJSONFGExpansion,
+			},
+		},
+		{
+			name: "Search with explain=false keeps the response unchanged",
+			fields: fields{
+				url:    "http://localhost:8080/search?q=Acht&addresses[version]=1&limit=50&f=json&explain=false",
+				format: "json",
+			},
+			want: want{
+				statusCode: http.StatusOK,
+				assertion:  assertNoExpansionObject,
+			},
+		},
+		{
+			name: "Search without explain keeps the response unchanged",
+			fields: fields{
+				url:    "http://localhost:8080/search?q=Acht&addresses[version]=1&limit=50&f=json",
+				format: "json",
+			},
+			want: want{
+				statusCode: http.StatusOK,
+				assertion:  assertNoExpansionObject,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -463,6 +544,10 @@ func TestSearch(t *testing.T) {
 			assert.Equal(t, tt.want.statusCode, rr.Code)
 
 			log.Printf("============ ACTUAL:\n %s", rr.Body.String())
+			if tt.want.assertion != nil {
+				tt.want.assertion(t, rr.Body.String())
+				return
+			}
 			expectedBody, err := os.ReadFile(tt.want.body)
 			if err != nil {
 				require.NoError(t, err)
@@ -479,6 +564,67 @@ func TestSearch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func assertGeoJSONExpansion(t *testing.T, body string) {
+	t.Helper()
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal([]byte(body), &resp))
+
+	// regular response fields remain present
+	assert.Contains(t, resp, "features")
+	assert.Contains(t, resp, "numberReturned")
+	assert.Contains(t, resp, "links")
+
+	expansion, ok := resp["expansion"].(map[string]any)
+	require.True(t, ok, "expansion object expected")
+	assert.Equal(t, "den haag", expansion["originalInput"])
+	assert.Equal(t, "gravenhage", expansion["normalizedInput"])
+	assert.Equal(t, []any{"gravenhage"}, expansion["words"])
+
+	rewrites, ok := expansion["rewrites"].([]any)
+	require.True(t, ok)
+	require.Len(t, rewrites, 1)
+	step := rewrites[0].(map[string]any)
+	assert.Equal(t, "den haag", step["from"])
+	assert.Equal(t, "gravenhage", step["to"])
+
+	synonyms, ok := expansion["synonyms"].([]any)
+	require.True(t, ok)
+	require.Len(t, synonyms, 1)
+	wordSynonyms := synonyms[0].(map[string]any)
+	assert.Equal(t, "gravenhage", wordSynonyms["word"])
+	assert.Equal(t, []any{"den <-> haag", "s-gravenhage"}, wordSynonyms["synonyms"])
+	assert.NotContains(t, expansion, "truncatedWords")
+	assert.NotContains(t, expansion, "wordsWithoutSynonyms")
+}
+
+func assertJSONFGExpansion(t *testing.T, body string) {
+	t.Helper()
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal([]byte(body), &resp))
+
+	// JSON-FG specific fields remain present
+	assert.Contains(t, resp, "coordRefSys")
+	assert.Contains(t, resp, "conformsTo")
+	assert.Contains(t, resp, "features")
+
+	expansion, ok := resp["expansion"].(map[string]any)
+	require.True(t, ok, "expansion object expected")
+	assert.Equal(t, "acht", expansion["originalInput"])
+	assert.Equal(t, "acht", expansion["normalizedInput"])
+	assert.Equal(t, []any{"acht"}, expansion["words"])
+	assert.Equal(t, []any{"acht"}, expansion["wordsWithoutSynonyms"])
+	assert.NotContains(t, expansion, "synonyms")
+	assert.NotContains(t, expansion, "truncatedWords")
+}
+
+func assertNoExpansionObject(t *testing.T, body string) {
+	t.Helper()
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal([]byte(body), &resp))
+	assert.Contains(t, resp, "features")
+	assert.NotContains(t, resp, "expansion")
 }
 
 func newEngine(t *testing.T) (*engine.Engine, map[features.DatasourceKey]ds.Datasource, map[int]string) {

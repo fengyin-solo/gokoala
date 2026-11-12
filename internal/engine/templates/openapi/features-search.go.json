@@ -39,6 +39,9 @@
           },
           {
             "$ref": "#/components/parameters/f-features"
+          },
+          {
+            "$ref": "#/components/parameters/explain-search"
           }
         ],
         "responses": {
@@ -123,6 +126,9 @@
 {{/*          },*/}}
           "numberReturned": {
             "$ref": "#/components/schemas/numberReturned"
+          },
+          "expansion": {
+            "$ref": "#/components/schemas/searchExpansion"
           }
         }
       },
@@ -159,6 +165,103 @@
 {{/*          },*/}}
           "numberReturned": {
             "$ref": "#/components/schemas/numberReturned"
+          },
+          "expansion": {
+            "$ref": "#/components/schemas/searchExpansion"
+          }
+        }
+      },
+      "searchExpansion": {
+        "description": "Explanation of how the search terms were normalized, rewritten and expanded with synonyms. Only included when the 'explain' query parameter is set to 'true'. Contains no SQL or datasource internals.",
+        "type": "object",
+        "required": [
+          "originalInput",
+          "normalizedInput",
+          "words"
+        ],
+        "properties": {
+          "originalInput": {
+            "type": "string",
+            "description": "The search terms as received, after basic normalization (trimming and lowercasing)."
+          },
+          "normalizedInput": {
+            "type": "string",
+            "description": "The search terms after all configured rewrites were applied."
+          },
+          "words": {
+            "type": "array",
+            "description": "The words in the order in which they first appear in the normalized input.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rewrites": {
+            "type": "array",
+            "description": "The rewrites that actually changed the input, in application order.",
+            "items": {
+              "$ref": "#/components/schemas/searchRewriteStep"
+            }
+          },
+          "synonyms": {
+            "type": "array",
+            "description": "The synonyms expanded per word, in word order. Words without synonyms are omitted.",
+            "items": {
+              "$ref": "#/components/schemas/searchWordSynonyms"
+            }
+          },
+          "wordsWithoutSynonyms": {
+            "type": "array",
+            "description": "The words for which no synonyms were configured, in word order.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "truncatedWords": {
+            "type": "array",
+            "description": "The words for which synonym expansion was cut off because a configured limit was reached.",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "searchRewriteStep": {
+        "type": "object",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "The configured alternative (or regex pattern) that was matched."
+          },
+          "to": {
+            "type": "string",
+            "description": "The canonical replacement the alternative was rewritten to."
+          }
+        }
+      },
+      "searchWordSynonyms": {
+        "type": "object",
+        "required": [
+          "word",
+          "synonyms"
+        ],
+        "properties": {
+          "word": {
+            "type": "string"
+          },
+          "synonyms": {
+            "type": "array",
+            "description": "The synonyms generated for the word, in deterministic order and capped to a maximum number of entries.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when not all generated synonyms could be included because a limit was reached."
           }
         }
       },
@@ -709,6 +812,22 @@
             "md"
           ],
           "type": "string"
+        },
+        "style": "form"
+      },
+      "explain-search": {
+        "description": "When set to 'true' the GeoJSON/JSON-FG response includes an 'expansion' object that explains how the search terms were normalized, rewritten and expanded with synonyms. The object contains no SQL or datasource internals. Not supported for HTML or Markdown responses.",
+        "explode": false,
+        "in": "query",
+        "name": "explain",
+        "required": false,
+        "schema": {
+          "default": false,
+          "enum": [
+            true,
+            false
+          ],
+          "type": "boolean"
         },
         "style": "form"
       }

@@ -36,7 +36,7 @@ func FuzzExpand(f *testing.F) {
 		f.Add(tc)
 	}
 	f.Fuzz(func(t *testing.T, input string) {
-		expanded, err := queryExpansion.Expand(context.Background(), input)
+		expanded, _, err := queryExpansion.Expand(context.Background(), input)
 		require.NoError(t, err)
 		query := expanded.ToExactMatchQuery(true)
 

@@ -1,0 +1,6 @@
+{
+  "detail": "query parameter 'explain' is only supported for JSON and JSON-FG responses",
+  "status": 400,
+  "timeStamp": "2000-01-01T00:00:00Z",
+  "title": "Bad Request"
+}
