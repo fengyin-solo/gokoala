@@ -10,7 +10,7 @@ import (
 func TestNewThemeAssetEndpoint(t *testing.T) {
 	// given
 	engine, err := NewEngine("internal/engine/testdata/config_minimal.yaml",
-		"internal/engine/testdata/test_theme.yaml", "", false, true)
+		"internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 	require.NoError(t, err)
 
 	tests := []struct {

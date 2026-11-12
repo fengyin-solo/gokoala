@@ -86,7 +86,7 @@ func TestNewStyles(t *testing.T) {
 							},
 						},
 					},
-				}, theme, "", false, true),
+				}, theme, "", false, true, nil),
 			},
 		},
 	}
@@ -171,7 +171,7 @@ func TestStyles_Style(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			styles := NewStyles(newEngine)
 			handler := styles.Style()
@@ -258,7 +258,7 @@ func TestStyles_Metadata(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			styles := NewStyles(newEngine)
 			handler := styles.Metadata()
@@ -320,7 +320,7 @@ func TestStyles_Legend(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			styles := NewStyles(newEngine)
 			handler := styles.Legend()
@@ -391,7 +391,7 @@ func TestTile_Styles(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			styles := NewStyles(newEngine)
 			handler := styles.Styles()

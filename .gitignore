@@ -4,9 +4,9 @@
 .vscode/
 
 # Binaries
-gokoala
-gokoala-etl
-gokoala-server
+/gokoala
+/gokoala-etl
+/gokoala-server
 
 # Frontend
 assets/view-component/

@@ -22,6 +22,7 @@ const (
 	openAPIFileFlag         = "openapi-file"
 	enableTrailingSlashFlag = "enable-trailing-slash"
 	enableCorsFlag          = "enable-cors"
+	corsAllowedOriginsFlag  = "cors-allowed-origins"
 	themeFileFlag           = "theme-file"
 	rewritesFileFlag        = "rewrites-file"
 	synonymsFileFlag        = "synonyms-file"
@@ -83,6 +84,14 @@ var (
 			Required: false,
 			EnvVars:  []string{strcase.ToScreamingSnake(enableCorsFlag)},
 		},
+		&cli.StringSliceFlag{
+			Name: corsAllowedOriginsFlag,
+			Usage: "restrict CORS to the given comma-separated list of exact http(s) origins, e.g. " +
+				"\"https://example.com,https://app.example.com\". When set this takes precedence over " +
+				"the wildcard enabled by --enable-cors. Paths, query strings, wildcards and duplicates are rejected.",
+			Required: false,
+			EnvVars:  []string{strcase.ToScreamingSnake(corsAllowedOriginsFlag)},
+		},
 		&cli.StringFlag{
 			Name:     themeFileFlag,
 			Usage:    "reference to a (customized) YAML configuration file for the theme",
@@ -120,9 +129,10 @@ func main() {
 		openAPIFile := c.String(openAPIFileFlag)
 		trailingSlash := c.Bool(enableTrailingSlashFlag)
 		cors := c.Bool(enableCorsFlag)
+		corsAllowedOrigins := c.StringSlice(corsAllowedOriginsFlag)
 
 		// Engine encapsulates shared non-OGCAPI specific logic
-		engine, err := eng.NewEngine(configFile, themeFile, openAPIFile, trailingSlash, cors)
+		engine, err := eng.NewEngine(configFile, themeFile, openAPIFile, trailingSlash, cors, corsAllowedOrigins)
 		if err != nil {
 			return err
 		}

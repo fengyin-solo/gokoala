@@ -114,6 +114,7 @@ GLOBAL OPTIONS:
    --openapi-file value     reference to a (customized) OGC OpenAPI spec for the dynamic parts of your OGC API [$OPENAPI_FILE]
    --enable-trailing-slash  allow API calls to URLs with a trailing slash. (default: false) [$ENABLE_TRAILING_SLASH]
    --enable-cors            enable Cross-Origin Resource Sharing (CORS) as required by OGC API specs. Disable if you handle CORS elsewhere. (default: false) [$ENABLE_CORS]
+   --cors-allowed-origins value  restrict CORS to the given comma-separated list of exact http(s) origins, e.g. "https://example.com,https://app.example.com". When set this takes precedence over the wildcard enabled by --enable-cors. Paths, query strings, wildcards and duplicates are rejected. [$CORS_ALLOWED_ORIGINS]
    --theme-file value       reference to a (customized) YAML configuration file for the theme [$THEME_FILE]
    --rewrites-file value    path to CSV file containing rewrites used to generate suggestions. Only for OGC API Features Search. [$REWRITES_FILE]
    --synonyms-file value    path to CSV file containing synonyms used to generate suggestions. Only for OGC API Features Search. [$SYNONYMS_FILE]
@@ -127,6 +128,36 @@ docker run -v `pwd`/examples:/examples -p 8080:8080 -it pdok/gokoala --config-fi
 ```
 
 Now open <http://localhost:8080>. See [examples](examples) for more details.
+
+### Cross-Origin Resource Sharing (CORS)
+
+By default CORS is disabled. Enable it with `--enable-cors` (or the `ENABLE_CORS`
+environment variable) to get the backwards compatible behavior where every origin is
+allowed using a wildcard `Access-Control-Allow-Origin: *`.
+
+To restrict browser access to known frontends, pass a whitelist of exact origins with
+`--cors-allowed-origins` (or the `CORS_ALLOWED_ORIGINS` environment variable, multiple
+origins are comma-separated). When a whitelist is configured it takes precedence over
+`--enable-cors`:
+
+```bash
+# command line, repeated flag or comma-separated values both work
+gokoala --config-file config.yaml \
+  --cors-allowed-origins https://example.com \
+  --cors-allowed-origins https://app.example.com
+
+# equivalent environment variable
+CORS_ALLOWED_ORIGINS="https://example.com,https://app.example.com" gokoala --config-file config.yaml
+```
+
+Only exact `http`/`https` origins consisting of a scheme, host and optional port are
+accepted. Paths, query strings, fragments, wildcards and duplicate entries make the
+server fail to start with an error. Allowed origins receive their exact origin in
+`Access-Control-Allow-Origin` together with a `Vary: Origin` header, while unknown
+origins receive no CORS allow headers. CORS preflight (`OPTIONS`) requests only permit
+`GET` and `HEAD` with the existing CORS headers: an allowed preflight returns `204`,
+an unauthorized one returns a `403` RFC 7807 problem response. Requests without an
+`Origin` header are unaffected.
 
 ### Configuration file
 

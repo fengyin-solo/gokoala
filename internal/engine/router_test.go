@@ -15,7 +15,7 @@ func TestUnexpectedProblemRecoverer(t *testing.T) {
 	}()
 	w := httptest.NewRecorder()
 
-	r := newRouter("1.2.3", true, false)
+	r := newRouter("1.2.3", true, false, nil)
 	r.Get("/panic", func(_ http.ResponseWriter, _ *http.Request) {
 		panic("oops")
 	})
@@ -50,7 +50,7 @@ func TestExpectedProblemRecoverer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := newRouter("1.2.3", true, false)
+			r := newRouter("1.2.3", true, false, nil)
 			r.Get(tt.path, tt.handlerFunc)
 
 			req, err := http.NewRequest(http.MethodGet, tt.path, nil)
@@ -79,7 +79,7 @@ func TestAbortRecoverer(t *testing.T) {
 	// given
 	w := httptest.NewRecorder()
 
-	r := newRouter("1.2.3", true, false)
+	r := newRouter("1.2.3", true, false, nil)
 	r.Get("/panic", func(_ http.ResponseWriter, _ *http.Request) {
 		panic(http.ErrAbortHandler)
 	})

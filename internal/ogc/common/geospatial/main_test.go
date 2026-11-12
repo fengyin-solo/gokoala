@@ -60,7 +60,7 @@ func TestNewCollections(t *testing.T) {
 							},
 						},
 					},
-				}, theme, "", false, true),
+				}, theme, "", false, true, nil),
 			},
 		},
 	}
@@ -188,7 +188,7 @@ func TestNewCollections_Collections(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			collections := NewCollections(newEngine, NewCollectionTypes(nil, nil))
 			handler := collections.Collections()
@@ -276,7 +276,7 @@ func TestNewCollections_Collection(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			collections := NewCollections(newEngine, NewCollectionTypes(nil, nil))
 			handler := collections.Collection()

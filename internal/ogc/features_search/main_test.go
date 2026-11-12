@@ -483,7 +483,7 @@ func TestSearch(t *testing.T) {
 
 func newEngine(t *testing.T) (*engine.Engine, map[features.DatasourceKey]ds.Datasource, map[int]string) {
 	t.Helper()
-	theEngine, err := engine.NewEngine(searchConfigFile, "", "", false, false)
+	theEngine, err := engine.NewEngine(searchConfigFile, "", "", false, false, nil)
 	require.NoError(t, err)
 
 	// use fixed decimal limit in coordinates and UTC timezone across all tests for

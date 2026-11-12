@@ -107,7 +107,7 @@ func TestCommonCore_LandingPage(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			core := NewCommonCore(newEngine, ExtraConformanceClasses{})
 			handler := core.LandingPage()
@@ -180,7 +180,7 @@ func TestCommonCore_Conformance(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			core := NewCommonCore(newEngine, ExtraConformanceClasses{})
 			handler := core.Conformance()
@@ -249,7 +249,7 @@ func TestCommonCore_API(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			core := NewCommonCore(newEngine, ExtraConformanceClasses{})
 			handler := core.API()

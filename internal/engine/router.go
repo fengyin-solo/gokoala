@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/cors"
 )
 
-func newRouter(version string, enableTrailingSlash bool, enableCORS bool) *chi.Mux {
+func newRouter(version string, enableTrailingSlash bool, enableCORS bool, corsAllowedOrigins []string) *chi.Mux {
 	router := chi.NewRouter()
 	router.Use(middleware.ClientIPFromXFF()) // should be first middleware
 	router.Use(middleware.Logger)            // log to console
@@ -19,7 +19,12 @@ func newRouter(version string, enableTrailingSlash bool, enableCORS bool) *chi.M
 	if enableTrailingSlash {
 		router.Use(middleware.StripSlashes)
 	}
-	if enableCORS {
+	switch {
+	case len(corsAllowedOrigins) > 0:
+		// an explicit origin whitelist restricts browser access to known frontends
+		router.Use(corsOriginWhitelistMiddleware(corsAllowedOrigins))
+	case enableCORS:
+		// no whitelist configured: keep the backwards compatible wildcard behavior
 		router.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   []string{"*"},
 			AllowedMethods:   []string{http.MethodGet, http.MethodHead, http.MethodOptions},

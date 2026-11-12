@@ -1410,7 +1410,7 @@ func TestFeatures(t *testing.T) {
 					rr, ts := createMockServer()
 					defer ts.Close()
 
-					newEngine, err := engine.NewEngine(configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+					newEngine, err := engine.NewEngine(configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 					require.NoError(t, err)
 
 					// use fixed decimal limit in coordinates and UTC timezone across all tests for
@@ -1492,7 +1492,7 @@ func TestConfiguredFeatureIDFiltering(t *testing.T) {
 				datasourceName := filepath.Base(filepath.Dir(configFile))
 				t.Run(datasourceName, func(t *testing.T) {
 					// given
-					newEngine, err := engine.NewEngine(configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+					newEngine, err := engine.NewEngine(configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 					require.NoError(t, err)
 					features := NewFeatures(newEngine)
 
@@ -1562,7 +1562,7 @@ func TestExternalFIDNotQueryable(t *testing.T) {
 		datasourceName := filepath.Base(filepath.Dir(configFile))
 		t.Run(datasourceName, func(t *testing.T) {
 			// given
-			newEngine, err := engine.NewEngine(configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			features := NewFeatures(newEngine)
 

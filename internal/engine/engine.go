@@ -42,7 +42,9 @@ type Engine struct {
 }
 
 // NewEngine builds a new Engine.
-func NewEngine(configFile string, themeFile string, openAPIFile string, enableTrailingSlash bool, enableCORS bool) (*Engine, error) {
+func NewEngine(configFile string, themeFile string, openAPIFile string, enableTrailingSlash bool,
+	enableCORS bool, corsAllowedOrigins []string,
+) (*Engine, error) {
 	cfg, err := config.NewConfig(configFile)
 	if err != nil {
 		return nil, err
@@ -51,16 +53,23 @@ func NewEngine(configFile string, themeFile string, openAPIFile string, enableTr
 	if err != nil {
 		return nil, err
 	}
+	validatedOrigins, err := validateCORSAllowedOrigins(corsAllowedOrigins)
+	if err != nil {
+		return nil, err
+	}
 
-	return NewEngineWithConfig(cfg, theme, openAPIFile, enableTrailingSlash, enableCORS), nil
+	return NewEngineWithConfig(cfg, theme, openAPIFile, enableTrailingSlash, enableCORS, validatedOrigins), nil
 }
 
-// NewEngineWithConfig builds a new Engine.
-func NewEngineWithConfig(config *config.Config, theme *config.Theme, openAPIFile string, enableTrailingSlash bool, enableCORS bool) *Engine {
+// NewEngineWithConfig builds a new Engine. The given CORS allowed origins are assumed to be
+// validated already, use NewEngine (or validateCORSAllowedOrigins) when they come from user input.
+func NewEngineWithConfig(config *config.Config, theme *config.Theme, openAPIFile string, enableTrailingSlash bool,
+	enableCORS bool, corsAllowedOrigins []string,
+) *Engine {
 	contentNegotiation := newContentNegotiation(config.AvailableLanguages)
 	templates := newTemplates(config, theme)
 	openAPI := newOpenAPI(config, []string{openAPIFile}, nil)
-	router := newRouter(config.Version, enableTrailingSlash, enableCORS)
+	router := newRouter(config.Version, enableTrailingSlash, enableCORS, corsAllowedOrigins)
 
 	engine := &Engine{
 		Config:    config,

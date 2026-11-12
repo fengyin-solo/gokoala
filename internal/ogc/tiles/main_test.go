@@ -78,7 +78,7 @@ func TestNewTiles(t *testing.T) {
 							SupportedStyles: nil,
 						},
 					},
-				}, theme, "", false, true),
+				}, theme, "", false, true, nil),
 			},
 		},
 		{
@@ -113,7 +113,7 @@ func TestNewTiles(t *testing.T) {
 							SupportedStyles: nil,
 						},
 					},
-				}, theme, "", false, true),
+				}, theme, "", false, true, nil),
 			},
 		},
 	}
@@ -318,7 +318,7 @@ func TestTiles_Tile(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			tiles := NewTiles(newEngine)
 			handler := tiles.Tile(*newEngine.Config.OgcAPI.Tiles.DatasetTiles)
@@ -471,7 +471,7 @@ func TestTiles_TileForCollection(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			tiles := NewTiles(newEngine)
 			geoDataTiles := map[string]config.Tiles{newEngine.Config.OgcAPI.Tiles.Collections[0].ID: newEngine.Config.OgcAPI.Tiles.Collections[0].GeoDataTiles}
@@ -541,7 +541,7 @@ func TestTile_TilesetsList(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			tiles := NewTiles(newEngine)
 			handler := tiles.TilesetsList()
@@ -614,7 +614,7 @@ func TestTile_TilesetsListForCollection(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			tiles := NewTiles(newEngine)
 			handler := tiles.TilesetsListForCollection()
@@ -711,7 +711,7 @@ func TestTile_Tileset(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			tiles := NewTiles(newEngine)
 			handler := tiles.Tileset()
@@ -814,7 +814,7 @@ func TestTile_TilesetForCollection(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			tiles := NewTiles(newEngine)
 			handler := tiles.TilesetForCollection()
@@ -911,7 +911,7 @@ func TestTile_TilematrixSet(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			tiles := NewTiles(newEngine)
 			handler := tiles.TileMatrixSet()
@@ -991,7 +991,7 @@ func TestTile_TilematrixSets(t *testing.T) {
 			rr, ts := createMockServer()
 			defer ts.Close()
 
-			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true)
+			newEngine, err := engine.NewEngine(tt.fields.configFile, "internal/engine/testdata/test_theme.yaml", "", false, true, nil)
 			require.NoError(t, err)
 			tiles := NewTiles(newEngine)
 			handler := tiles.TileMatrixSets()
