@@ -12,8 +12,37 @@
     "version": "1.0.1"
   },
   "paths": {
+    "/schemas": {
+      "get": {
+        "tags" : [ "Features" ],
+        "summary": "fetch the schemas of all collections in a single response",
+        "description": "Fetch an aggregated JSON Schema catalog containing the schema of every configured feature collection. Collections are returned in the order in which they are configured. Each entry contains the collection identifier, a stable href to the collection schema, the generation status and the collection's JSON Schema. When the schema of a single collection can't be generated its entry is still included with status `failed` and an error category, while the other collections are returned as usual.\n\nUse content negotiation to request JSON schema (application/schema+json).",
+        "operationId": "getSchemas",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/f"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The response is a JSON Schema document containing the schemas of all configured feature collections, including entries for collections whose schema could not be generated.",
+            "content": {
+              "application/schema+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/schemasCatalog"
+                }
+              }
+            },
+            "headers" : {
+              {{block "headers" . }}{{end}}
+            }
+          },
+          {{block "problems" . }}{{end}}
+        }
+      }
+    }
     {{- range $index, $coll := .Config.OgcAPI.Features.Collections -}}
-    {{- if $index -}},{{- end -}}
+    ,
     "/collections/{{ $coll.ID }}/items": {
       "get": {
         "tags" : [ "Features" ],
@@ -966,6 +995,78 @@
           }
         },
         "description": "The temporal extent of the features in the collection."
+      },
+      "schemasCatalog": {
+        "required": [
+          "$schema",
+          "$id",
+          "type",
+          "version",
+          "collections"
+        ],
+        "type": "object",
+        "description": "Aggregated JSON Schema catalog describing all configured feature collections of this API.",
+        "properties": {
+          "$schema": {
+            "type": "string",
+            "description": "URI that identifies the JSON Schema version used by this catalog"
+          },
+          "$id": {
+            "type": "string",
+            "description": "URI that serves as the identifier of this schema catalog"
+          },
+          "type": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "description": "Version of the API configuration baseline on which this catalog was generated. Repeated requests on the same baseline return an identical catalog."
+          },
+          "collections": {
+            "type": "array",
+            "description": "One entry per configured feature collection, in configuration order.",
+            "items": {
+              "$ref": "#/components/schemas/collectionSchemaEntry"
+            }
+          }
+        }
+      },
+      "collectionSchemaEntry": {
+        "required": [
+          "id",
+          "href",
+          "status",
+          "schema"
+        ],
+        "type": "object",
+        "description": "The schema of a single feature collection within the aggregated catalog.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the collection"
+          },
+          "href": {
+            "type": "string",
+            "description": "Stable URI of the JSON Schema for this collection"
+          },
+          "status": {
+            "type": "string",
+            "description": "Whether the collection schema was generated successfully.",
+            "enum": [
+              "available",
+              "failed"
+            ]
+          },
+          "errorCategory": {
+            "type": "string",
+            "description": "Public, implementation-independent category of the failure. Only present when status is 'failed'."
+          },
+          "schema": {
+            "type": "object",
+            "nullable": true,
+            "description": "The JSON Schema describing the features in this collection. Null when the schema could not be generated."
+          }
+        }
       },
       "jsonSchema": {
         "required": [

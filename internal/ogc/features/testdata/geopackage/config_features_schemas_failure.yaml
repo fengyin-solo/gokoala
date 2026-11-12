@@ -1,0 +1,29 @@
+---
+version: 1.0.2
+title: OGC API Features
+abstract: Contains one valid and one unreachable collection, used to test partial schema generation failures
+baseUrl: http://localhost:8080
+serviceIdentifier: Feats
+license:
+  name: CC0
+  url: https://www.tldrlegal.com/license/creative-commons-cc0-1.0-universal
+ogcApi:
+  features:
+    datasources:
+      defaultWGS84:
+        geopackage:
+          local:
+            file: ./internal/ogc/features/datasources/geopackage/testdata/bag-wgs84.gpkg
+            fid: feature_id
+            queryTimeout: 15m
+    collections:
+      - id: foo
+        tableName: ligplaatsen
+        metadata:
+          title: Foooo
+          description: Foooo
+      - id: broken
+        tableName: table-that-does-not-exist
+        metadata:
+          title: Broken
+          description: This collection points to a table missing from the datasource

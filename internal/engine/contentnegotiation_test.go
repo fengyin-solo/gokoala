@@ -26,6 +26,8 @@ func TestNegotiateFormat(t *testing.T) {
 		{chromeAcceptHeader, "http://pdok.example/ogc/api/", "html"},
 		{"application/json", "http://pdok.example/ogc/api.json", "json"},
 		{"application/json", "http://pdok.example/ogc/api?f=json", "json"},
+		{"application/schema+json", "http://pdok.example/ogc/api/schemas", "json"},
+		{"application/schema+json, application/json;q=0.9", "http://pdok.example/ogc/api/schemas", "json"},
 		{"this is an invalid accept header &%%$$&#$&##&", "http://pdok.example/ogc/api", "json"}, // fallback
 		{"", "http://pdok.example/ogc/api?f=json", "json"},
 		{"application/xml, application/json, text/css, text/html", "http://pdok.example/ogc/api/", "xml"},

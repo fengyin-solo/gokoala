@@ -108,6 +108,7 @@ func newContentNegotiation(availableLanguages []config.Language) *ContentNegotia
 		contenttype.NewMediaType(MediaTypeMapboxStyle),
 		contenttype.NewMediaType(MediaTypeSLD),
 		contenttype.NewMediaType(MediaTypeOpenAPI),
+		contenttype.NewMediaType(MediaTypeJSONSchema),
 	}
 
 	formatsByMediaType := map[string]string{
@@ -121,9 +122,15 @@ func newContentNegotiation(availableLanguages []config.Language) *ContentNegotia
 		MediaTypeMVT:         FormatMVT,
 		MediaTypeMapboxStyle: FormatMapboxStyle,
 		MediaTypeSLD:         FormatSLD,
+		// JSON Schema is JSON, so negotiate to the JSON format. The actual mediatype is set through
+		// a MediaTypeOverwrite on the schema-producing endpoints.
+		MediaTypeJSONSchema: FormatJSON,
 	}
 
 	mediaTypesByFormat := util.Inverse(formatsByMediaType)
+	// multiple mediatypes (e.g. application/schema+json) map to the JSON format, make sure the
+	// canonical mediatype for the JSON format stays application/json.
+	mediaTypesByFormat[FormatJSON] = MediaTypeJSON
 
 	languageTags := make([]language.Tag, 0, len(availableLanguages))
 	for _, availableLanguage := range availableLanguages {

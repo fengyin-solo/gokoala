@@ -188,6 +188,12 @@ func (t *Templates) getRenderedTemplate(key TemplateKey) ([]byte, error) {
 	return nil, fmt.Errorf("no rendered template with name %s", key.Name)
 }
 
+// GetRenderedTemplate returns a template that was previously rendered via RenderTemplates or
+// RenderTemplatesWithParams, identified by the given TemplateKey.
+func (e *Engine) GetRenderedTemplate(key TemplateKey) ([]byte, error) {
+	return e.Templates.getRenderedTemplate(key)
+}
+
 func (t *Templates) parseAndSaveTemplate(key TemplateKey) {
 	for lang := range t.localizers {
 		keyWithLang := ExpandTemplateKey(key, lang)

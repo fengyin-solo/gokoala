@@ -31,6 +31,7 @@ type Features struct {
 	collectionTypes       geospatial.CollectionTypes
 	queryables            map[string]domain.Queryables
 	schemas               map[string]domain.Schema
+	schemaCatalog         schemasCatalog
 
 	html *htmlFeatures
 	json *jsonFeatures
@@ -43,10 +44,11 @@ func NewFeatures(e *engine.Engine) *Features {
 	axisOrderBySRID := GetAxisOrderBySRID(projJSONBySRID)
 	configuredCollections := cacheConfiguredFeatureCollections(e)
 	collectionTypes := determineCollectionTypes(datasources)
-	schemas, queryables := schemasAndQueryablesByCollection(datasources, configuredCollections, collectionTypes)
+	schemas, queryables, schemaFailures := schemasAndQueryablesByCollection(datasources, configuredCollections, collectionTypes)
 
 	renderSchemas(e, schemas)
 	renderQueryables(e, queryables)
+	schemaCatalog := buildSchemasCatalog(e, schemaFailures)
 	rebuildOpenAPI(e, queryables, schemas, collectionTypes)
 
 	f := &Features{
@@ -57,6 +59,7 @@ func NewFeatures(e *engine.Engine) *Features {
 		collectionTypes:       collectionTypes,
 		queryables:            queryables,
 		schemas:               schemas,
+		schemaCatalog:         schemaCatalog,
 		html:                  newHTMLFeatures(e, projJSONBySRID),
 		json:                  newJSONFeatures(e),
 	}
@@ -65,6 +68,7 @@ func NewFeatures(e *engine.Engine) *Features {
 	e.Router.Get(geospatial.CollectionsPath+"/{collectionId}/items/{featureId}", f.Feature())
 	e.Router.Get(geospatial.CollectionsPath+"/{collectionId}/schema", f.Schema())
 	e.Router.Get(geospatial.CollectionsPath+"/{collectionId}/queryables", f.Queryables())
+	e.Router.Get(geospatial.CollectionsPath+schemasCatalogPath, f.Schemas())
 
 	return f
 }
@@ -213,21 +217,36 @@ func cacheConfiguredFeatureCollections(e *engine.Engine) map[string]config.Featu
 // schemasAndQueryablesByCollection retrieves and normalizes the schema and
 // queryable fields for each feature collection.
 //
+// Collections whose schema can't be generated are not omitted: they are recorded in the returned
+// failures map (with a public, implementation-independent error category) so callers can still
+// include them in aggregated responses.
+//
 //nolint:cyclop
 func schemasAndQueryablesByCollection(
 	datasources map[DatasourceKey]ds.Datasource,
 	collections map[string]config.FeaturesCollection,
-	collectionTypes geospatial.CollectionTypes) (map[string]domain.Schema, map[string]domain.Queryables) {
+	collectionTypes geospatial.CollectionTypes) (
+	map[string]domain.Schema, map[string]domain.Queryables, map[string]schemaFailure) {
 
 	schemaByCollection := make(map[string]domain.Schema)
 	queryablesByCollection := make(map[string]domain.Queryables)
+	schemaFailures := make(map[string]schemaFailure)
 
 	for _, collection := range collections {
 		// the schema should be the same regardless of CRS, so we use WGS84 as it's the default and always present
 		datasource := datasources[DatasourceKey{srid: domain.WGS84SRID, collectionID: collection.ID}]
+		if datasource == nil {
+			err := fmt.Errorf("no WGS84 datasource available for collection %s", collection.ID)
+			log.Printf("failed to get schema for collection %s: %v", collection.ID, err)
+			schemaFailures[collection.ID] = schemaFailure{Category: schemaErrorCategoryConfiguration, Err: err}
+
+			continue
+		}
 		schema, queryables, err := datasource.GetSchema(collection.ID)
 		if err != nil {
 			log.Printf("failed to get schema for collection %s: %v", collection.ID, err)
+			schemaFailures[collection.ID] = schemaFailure{Category: schemaErrorCategoryDatasource, Err: err}
+
 			continue
 		}
 		// expand the schema with details about temporal fields
@@ -249,7 +268,10 @@ func schemasAndQueryablesByCollection(
 			if collectionTypes.GetCollectionType(collection.ID) == geospatial.Features {
 				geometryField := schema.GetGeomField()
 				if geometryField == nil {
-					log.Printf("no geometry field found in schema for feature collection %s", collection.ID)
+					err := fmt.Errorf("no geometry field found in schema for feature collection %s", collection.ID)
+					log.Print(err)
+					schemaFailures[collection.ID] = schemaFailure{Category: schemaErrorCategoryConfiguration, Err: err}
+
 					continue
 				}
 				queryables[domain.GeomPropertyName] = domain.QueryableWithAllowedValues{
@@ -281,7 +303,7 @@ func schemasAndQueryablesByCollection(
 		schemaByCollection[collection.ID] = *schema
 		queryablesByCollection[collection.ID] = queryables
 	}
-	return schemaByCollection, queryablesByCollection
+	return schemaByCollection, queryablesByCollection, schemaFailures
 }
 
 // configureTopLevelDatasources configures top-level datasources - in one or multiple CRS's - which can be
