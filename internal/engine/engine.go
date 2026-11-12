@@ -210,15 +210,15 @@ func (e *Engine) Serve(w http.ResponseWriter, r *http.Request, opt ...ServeOptio
 			s.contentType = e.CN.formatToMediaType(*s.templateKey)
 		}
 	case s.json != nil:
-		if !s.validateResponse {
-			// shortcut for max performance: serve JSON *WITHOUT* OpenAPI validation
-			// by writing directly to the response output stream
-			w.Header().Set(HeaderContentType, s.contentType)
-			e.encodeJSON(w, s.json, w)
+		// buffer the JSON so the representation can be OpenAPI validated and a stable
+		// validator (ETag) can be computed to support conditional requests
+		outputBuf := &bytes.Buffer{}
+		if err := e.encodeJSON(s.json, outputBuf); err != nil {
+			log.Printf("JSON encoding failed: %v", err)
+			RenderProblem(ProblemServerError, w, "Failed to write JSON response")
+
 			return
 		}
-		outputBuf := &bytes.Buffer{}
-		e.encodeJSON(w, s.json, outputBuf)
 		s.output = outputBuf.Bytes()
 	}
 
@@ -231,7 +231,9 @@ func (e *Engine) Serve(w http.ResponseWriter, r *http.Request, opt ...ServeOptio
 			return
 		}
 	}
-	writeResponse(w, s.contentType, s.output)
+
+	// attach an ETag validator, declare Vary and honor conditional GET/HEAD (If-None-Match)
+	serveConditional(w, r, s.contentType, s.output, s.variantKey(r))
 }
 
 // serve options
@@ -317,28 +319,8 @@ func (e *Engine) ReverseProxyAndValidate(w http.ResponseWriter, r *http.Request,
 		if contentTypeOverwrite != "" {
 			proxyRes.Header.Set(HeaderContentType, contentTypeOverwrite)
 		}
-		if contentType := proxyRes.Header.Get(HeaderContentType); contentType == MediaTypeJSON && validateResponse {
-			var reader io.ReadCloser
-			var err error
-			if proxyRes.Header.Get(HeaderContentEncoding) == FormatGzip {
-				reader, err = gzip.NewReader(proxyRes.Body)
-				if err != nil {
-					return err
-				}
-			} else {
-				reader = proxyRes.Body
-			}
-			res, err := io.ReadAll(reader)
-			if err != nil {
-				return err
-			}
-			e.Serve(w, r,
-				ServeValidation(false, true),
-				ServeContentType(contentType),
-				ServePreRenderedOutput(res))
-		}
 
-		return nil
+		return e.revalidateProxiedJSON(w, r, proxyRes, validateResponse)
 	}
 
 	reverseProxy := &httputil.ReverseProxy{
@@ -347,6 +329,43 @@ func (e *Engine) ReverseProxyAndValidate(w http.ResponseWriter, r *http.Request,
 		ErrorHandler:   errorHandler,
 	}
 	reverseProxy.ServeHTTP(w, r)
+}
+
+// revalidateProxiedJSON serves a JSON response received from the upstream server through
+// the regular Engine.Serve flow, so it is OpenAPI validated and gains conditional request
+// support (ETag/If-None-Match). Non-JSON responses or disabled validation are left untouched.
+func (e *Engine) revalidateProxiedJSON(w http.ResponseWriter, r *http.Request,
+	proxyRes *http.Response, validateResponse bool) error {
+	if !validateResponse || proxyRes.Header.Get(HeaderContentType) != MediaTypeJSON {
+		return nil
+	}
+
+	reader := proxyRes.Body
+	if proxyRes.Header.Get(HeaderContentEncoding) == FormatGzip {
+		gzipReader, err := gzip.NewReader(proxyRes.Body)
+		if err != nil {
+			return err
+		}
+		reader = gzipReader
+	}
+
+	res, err := io.ReadAll(reader)
+	if err != nil {
+		return err
+	}
+
+	// preserve a validator supplied by the upstream server instead of
+	// generating and overwriting it with our own ETag
+	if upstreamETag := proxyRes.Header.Get(HeaderETag); upstreamETag != "" {
+		w.Header().Set(HeaderETag, upstreamETag)
+	}
+
+	e.Serve(w, r,
+		ServeValidation(false, true),
+		ServeContentType(MediaTypeJSON),
+		ServePreRenderedOutput(res))
+
+	return nil
 }
 
 // startServer creates and starts an HTTP server, also takes care of graceful shutdown.
@@ -412,11 +431,8 @@ func (e *Engine) renderTemplates(urlPath string, params any, breadcrumbs []Bread
 	}
 }
 
-func (e *Engine) encodeJSON(w http.ResponseWriter, input any, output io.Writer) {
-	if err := util.GetJSONEncoder(output).Encode(input); err != nil {
-		log.Printf("JSON encoding failed: %v", err)
-		RenderProblem(ProblemServerError, w, "Failed to write JSON response")
-	}
+func (e *Engine) encodeJSON(input any, output io.Writer) error {
+	return util.GetJSONEncoder(output).Encode(input)
 }
 
 func removeBody(r *http.Response) {

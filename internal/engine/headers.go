@@ -13,4 +13,8 @@ const (
 	HeaderBaseURL         = "X-BaseUrl"
 	HeaderRequestedWith   = "X-Requested-With"
 	HeaderAPIVersion      = "API-Version"
+	HeaderCookie          = "Cookie"
+	HeaderVary            = "Vary"
+	HeaderETag            = "ETag"
+	HeaderIfNoneMatch     = "If-None-Match"
 )
